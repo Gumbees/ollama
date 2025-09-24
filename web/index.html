@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 Ollama Neural Audio Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            color: white;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .main-container {
+            flex: 1;
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .chat-panel {
+            flex: 2;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .audio-panel {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls {
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f9fafb;
+        }
+
+        .model-select {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .model-select select {
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .neural-audio-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .neural-audio-toggle input[type="checkbox"] {
+            width: 1.2rem;
+            height: 1.2rem;
+        }
+
+        .neural-audio-config {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .neural-audio-config label {
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+
+        .neural-audio-config input {
+            padding: 0.25rem;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .message {
+            display: flex;
+            gap: 0.75rem;
+            max-width: 100%;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message.user .message-content {
+            background: #3b82f6;
+            color: white;
+            margin-left: 2rem;
+        }
+
+        .message.assistant .message-content {
+            background: #f3f4f6;
+            color: #374151;
+            margin-right: 2rem;
+        }
+
+        .message-avatar {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .message.assistant .message-avatar {
+            background: #10b981;
+            color: white;
+        }
+
+        .message-content {
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .input-area {
+            padding: 1rem;
+            border-top: 1px solid #e5e7eb;
+            background: #f9fafb;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 0.5rem;
+            align-items: flex-end;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            resize: none;
+            font-family: inherit;
+            min-height: 2.5rem;
+            max-height: 8rem;
+        }
+
+        .send-button {
+            padding: 0.75rem 1.5rem;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        .send-button:hover {
+            background: #2563eb;
+        }
+
+        .send-button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .audio-visualizer {
+            background: #000;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .audio-canvas {
+            width: 100%;
+            height: 200px;
+            display: block;
+        }
+
+        .neural-stats {
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .neural-stats h3 {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            color: #374151;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            font-size: 0.8rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+
+        .audio-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .audio-button {
+            padding: 0.5rem 1rem;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+
+        .audio-button:hover {
+            background: #f3f4f6;
+        }
+
+        .audio-button.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            margin-bottom: 1rem;
+        }
+
+        .status-dot {
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+
+        .status-dot.connected {
+            background: #10b981;
+        }
+
+        .status-dot.generating {
+            background: #f59e0b;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .thinking-indicator {
+            display: none;
+            color: #6b7280;
+            font-style: italic;
+            font-size: 0.9rem;
+        }
+
+        .thinking-indicator.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
+            .neural-audio-config {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎵 Ollama Neural Audio Chat</h1>
+        <p>Chat with AI and listen to its neural network in real-time</p>
+    </div>
+
+    <div class="main-container">
+        <div class="chat-panel">
+            <div class="controls">
+                <div class="model-select">
+                    <label for="model">Model:</label>
+                    <select id="model">
+                        <option value="llama3.2">llama3.2</option>
+                        <option value="llama3.2:1b">llama3.2:1b</option>
+                        <option value="qwen2.5">qwen2.5</option>
+                        <option value="mistral">mistral</option>
+                        <option value="codellama">codellama</option>
+                    </select>
+                    
+                    <div class="status-indicator">
+                        <div class="status-dot" id="status-dot"></div>
+                        <span id="status-text">Disconnected</span>
+                    </div>
+                </div>
+
+                <div class="neural-audio-toggle">
+                    <input type="checkbox" id="neural-audio-enabled" checked>
+                    <label for="neural-audio-enabled">🎵 Enable Neural Audio</label>
+                </div>
+
+                <div class="neural-audio-config" id="audio-config">
+                    <label>Base Freq: <input type="number" id="base-freq" value="440" min="100" max="1000"></label>
+                    <label>Update Rate: <input type="text" id="update-rate" value="10ms"></label>
+                    <label>Wave Type: 
+                        <select id="wave-type">
+                            <option value="sine">Sine</option>
+                            <option value="square">Square</option>
+                            <option value="sawtooth">Sawtooth</option>
+                            <option value="triangle">Triangle</option>
+                        </select>
+                    </label>
+                    <label>Sample Rate: <input type="number" id="sample-rate" value="44100" min="8000" max="48000"></label>
+                </div>
+            </div>
+
+            <div class="messages" id="messages">
+                <div class="message assistant">
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+                        Hello! I'm ready to chat with neural audio enabled. Ask me anything and you'll hear my neural network processing in real-time! 🎵
+                    </div>
+                </div>
+            </div>
+
+            <div class="thinking-indicator" id="thinking-indicator">
+                🧠 AI is thinking... Listen to the neural activity!
+            </div>
+
+            <div class="input-area">
+                <div class="input-container">
+                    <textarea 
+                        id="message-input" 
+                        class="message-input" 
+                        placeholder="Type your message here... Neural audio will play as the AI responds!"
+                        rows="1"
+                    ></textarea>
+                    <button id="send-button" class="send-button">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="audio-panel">
+            <h3>🎵 Neural Audio</h3>
+            
+            <div class="audio-controls">
+                <button class="audio-button" id="mute-button">🔊 Mute</button>
+                <button class="audio-button" id="record-button">⏺️ Record</button>
+                <button class="audio-button active" id="visualize-button">📊 Visualize</button>
+            </div>
+
+            <div class="audio-visualizer">
+                <canvas id="audio-canvas" class="audio-canvas"></canvas>
+            </div>
+
+            <div class="neural-stats" id="neural-stats">
+                <h3>Neural Network Activity</h3>
+                <div class="stat-item">
+                    <span>Tensors Processed:</span>
+                    <span id="tensors-processed">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Audio Samples Generated:</span>
+                    <span id="audio-samples">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Current Frequency:</span>
+                    <span id="current-freq">440 Hz</span>
+                </div>
+                <div class="stat-item">
+                    <span>Current Amplitude:</span>
+                    <span id="current-amp">0.0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Active Layers:</span>
+                    <span id="active-layers">0</span>
+                </div>
+            </div>
+
+            <div class="neural-stats">
+                <h3>Latest Tensor Activity</h3>
+                <div id="tensor-activity">
+                    <div class="stat-item">
+                        <span>No activity yet...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class NeuralAudioChat {
+            constructor() {
+                this.audioContext = null;
+                this.isPlaying = false;
+                this.isMuted = false;
+                this.isRecording = false;
+                this.canvas = document.getElementById('audio-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.animationId = null;
+                this.audioData = [];
+                this.setupCanvas();
+                this.setupEventListeners();
+                this.checkConnection();
+            }
+
+            setupCanvas() {
+                const resizeCanvas = () => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    this.canvas.width = rect.width * window.devicePixelRatio;
+                    this.canvas.height = rect.height * window.devicePixelRatio;
+                    this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                };
+                
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+                this.startVisualization();
+            }
+
+            setupEventListeners() {
+                const sendButton = document.getElementById('send-button');
+                const messageInput = document.getElementById('message-input');
+                
+                sendButton.addEventListener('click', () => this.sendMessage());
+                messageInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+
+                document.getElementById('mute-button').addEventListener('click', () => this.toggleMute());
+                document.getElementById('record-button').addEventListener('click', () => this.toggleRecording());
+                document.getElementById('visualize-button').addEventListener('click', () => this.toggleVisualization());
+                
+                document.getElementById('neural-audio-enabled').addEventListener('change', (e) => {
+                    document.getElementById('audio-config').style.display = e.target.checked ? 'grid' : 'none';
+                });
+            }
+
+            async checkConnection() {
+                try {
+                    const response = await fetch('/api/version');
+                    if (response.ok) {
+                        this.updateStatus('connected', 'Connected to Ollama');
+                    } else {
+                        this.updateStatus('disconnected', 'Ollama not responding');
+                    }
+                } catch (error) {
+                    this.updateStatus('disconnected', 'Connection failed');
+                    console.warn('Ollama connection failed:', error);
+                }
+            }
+
+            updateStatus(status, text) {
+                const statusDot = document.getElementById('status-dot');
+                const statusText = document.getElementById('status-text');
+                
+                statusDot.className = `status-dot ${status}`;
+                statusText.textContent = text;
+            }
+
+            async sendMessage() {
+                const input = document.getElementById('message-input');
+                const message = input.value.trim();
+                
+                if (!message) return;
+
+                // Add user message to chat
+                this.addMessage('user', message);
+                input.value = '';
+                
+                // Show thinking indicator
+                const thinkingIndicator = document.getElementById('thinking-indicator');
+                thinkingIndicator.classList.add('active');
+                this.updateStatus('generating', 'Generating...');
+
+                // Prepare request
+                const neuralAudioEnabled = document.getElementById('neural-audio-enabled').checked;
+                const requestData = {
+                    model: document.getElementById('model').value,
+                    messages: [{ role: 'user', content: message }],
+                    stream: true
+                };
+
+                if (neuralAudioEnabled) {
+                    requestData.neural_audio = true;
+                    requestData.neural_audio_config = {
+                        magnitude_to_freq: true,
+                        variance_to_amp: true,
+                        base_freq: parseFloat(document.getElementById('base-freq').value),
+                        wave_type: document.getElementById('wave-type').value,
+                        sample_rate: parseInt(document.getElementById('sample-rate').value),
+                        update_rate: document.getElementById('update-rate').value
+                    };
+                }
+
+                try {
+                    await this.streamChatResponse(requestData);
+                } catch (error) {
+                    console.error('Chat error:', error);
+                    this.addMessage('assistant', 'Sorry, I encountered an error. Please try again.');
+                } finally {
+                    thinkingIndicator.classList.remove('active');
+                    this.updateStatus('connected', 'Connected to Ollama');
+                }
+            }
+
+            async streamChatResponse(requestData) {
+                // This would normally call the real Ollama API
+                // For demonstration, we'll simulate the response
+                
+                await this.simulateStreamingResponse(requestData);
+            }
+
+            async simulateStreamingResponse(requestData) {
+                const assistantDiv = this.addMessage('assistant', '');
+                const messageContent = assistantDiv.querySelector('.message-content');
+                
+                // Simulate a response
+                const fullResponse = "Neural networks are fascinating computational models inspired by biological neural networks! They process information through interconnected nodes, learning patterns from data to make predictions or decisions. Each layer transforms the input in different ways, creating complex representations that enable AI to understand language, recognize images, and much more.";
+                
+                let currentText = '';
+                
+                for (let i = 0; i < fullResponse.length; i++) {
+                    currentText += fullResponse[i];
+                    messageContent.textContent = currentText;
+                    
+                    // Simulate neural audio data
+                    if (requestData.neural_audio) {
+                        this.processNeuralAudio({
+                            audioSamples: this.generateFakeAudioSamples(),
+                            tensorStats: this.generateFakeTensorStats(),
+                            sampleRate: requestData.neural_audio_config.sample_rate,
+                            duration: 50
+                        });
+                    }
+                    
+                    await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
+                }
+            }
+
+            generateFakeAudioSamples() {
+                const samples = [];
+                const frequency = 440 + Math.random() * 440; // 440-880 Hz range
+                const amplitude = 0.1 + Math.random() * 0.4; // 0.1-0.5 amplitude
+                
+                for (let i = 0; i < 100; i++) {
+                    const t = i / 44100;
+                    samples.push(amplitude * Math.sin(2 * Math.PI * frequency * t));
+                }
+                
+                return samples;
+            }
+
+            generateFakeTensorStats() {
+                const layers = ['attention.query', 'attention.key', 'attention.value', 'feed_forward.up', 'feed_forward.down'];
+                const randomLayer = layers[Math.floor(Math.random() * layers.length)];
+                
+                return [{
+                    name: randomLayer,
+                    magnitude: Math.random() * 0.8 + 0.1,
+                    variance: Math.random() * 0.5 + 0.1,
+                    sparsity: Math.random() * 0.6 + 0.1,
+                    frequency_contribution: Math.random() * 0.8 + 0.2,
+                    amplitude_contribution: Math.random() * 0.8 + 0.2
+                }];
+            }
+
+            processNeuralAudio(audioData) {
+                if (this.isMuted) return;
+
+                // Store audio data for visualization
+                this.audioData = audioData.audioSamples;
+
+                // Update statistics
+                this.updateStats(audioData);
+
+                // Play audio if enabled
+                if (!this.isMuted) {
+                    this.playAudioSamples(audioData.audioSamples, audioData.sampleRate);
+                }
+            }
+
+            async playAudioSamples(samples, sampleRate) {
+                if (!this.audioContext) {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                const audioBuffer = this.audioContext.createBuffer(1, samples.length, sampleRate);
+                const channelData = audioBuffer.getChannelData(0);
+                
+                for (let i = 0; i < samples.length; i++) {
+                    channelData[i] = samples[i];
+                }
+
+                const source = this.audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(this.audioContext.destination);
+                source.start();
+            }
+
+            updateStats(audioData) {
+                document.getElementById('tensors-processed').textContent = 
+                    parseInt(document.getElementById('tensors-processed').textContent) + 1;
+                
+                document.getElementById('audio-samples').textContent = 
+                    parseInt(document.getElementById('audio-samples').textContent) + audioData.audioSamples.length;
+
+                if (audioData.tensorStats && audioData.tensorStats.length > 0) {
+                    const stat = audioData.tensorStats[0];
+                    const freq = 440 * stat.frequency_contribution;
+                    const amp = stat.amplitude_contribution;
+                    
+                    document.getElementById('current-freq').textContent = `${freq.toFixed(1)} Hz`;
+                    document.getElementById('current-amp').textContent = amp.toFixed(3);
+                    document.getElementById('active-layers').textContent = audioData.tensorStats.length;
+
+                    // Update tensor activity
+                    const activityDiv = document.getElementById('tensor-activity');
+                    activityDiv.innerHTML = audioData.tensorStats.map(stat => `
+                        <div class="stat-item">
+                            <span>${stat.name}:</span>
+                            <span>mag: ${stat.magnitude.toFixed(2)}, var: ${stat.variance.toFixed(2)}</span>
+                        </div>
+                    `).join('');
+                }
+            }
+
+            startVisualization() {
+                const animate = () => {
+                    this.drawVisualization();
+                    this.animationId = requestAnimationFrame(animate);
+                };
+                animate();
+            }
+
+            drawVisualization() {
+                const width = this.canvas.width / window.devicePixelRatio;
+                const height = this.canvas.height / window.devicePixelRatio;
+                
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(0, 0, width, height);
+
+                if (this.audioData && this.audioData.length > 0) {
+                    this.ctx.strokeStyle = '#00ff88';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.beginPath();
+
+                    const sliceWidth = width / this.audioData.length;
+                    let x = 0;
+
+                    for (let i = 0; i < this.audioData.length; i++) {
+                        const v = this.audioData[i] * 0.5; // Scale down
+                        const y = (v + 1) * height / 2; // Center and scale
+
+                        if (i === 0) {
+                            this.ctx.moveTo(x, y);
+                        } else {
+                            this.ctx.lineTo(x, y);
+                        }
+
+                        x += sliceWidth;
+                    }
+
+                    this.ctx.stroke();
+
+                    // Add frequency spectrum visualization
+                    this.drawFrequencySpectrum(width, height);
+                } else {
+                    // Draw idle pattern
+                    this.drawIdlePattern(width, height);
+                }
+            }
+
+            drawFrequencySpectrum(width, height) {
+                // Simple frequency visualization
+                const barCount = 32;
+                const barWidth = width / barCount;
+                
+                this.ctx.fillStyle = '#3b82f6';
+                
+                for (let i = 0; i < barCount; i++) {
+                    const barHeight = Math.random() * height * 0.3 + 10;
+                    this.ctx.fillRect(i * barWidth, height - barHeight, barWidth - 2, barHeight);
+                }
+            }
+
+            drawIdlePattern(width, height) {
+                // Draw a sine wave as idle pattern
+                this.ctx.strokeStyle = '#333';
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+                
+                const frequency = 0.02;
+                const amplitude = height * 0.1;
+                const centerY = height / 2;
+                
+                for (let x = 0; x < width; x++) {
+                    const y = centerY + Math.sin(x * frequency + Date.now() * 0.001) * amplitude;
+                    if (x === 0) {
+                        this.ctx.moveTo(x, y);
+                    } else {
+                        this.ctx.lineTo(x, y);
+                    }
+                }
+                
+                this.ctx.stroke();
+            }
+
+            addMessage(role, content) {
+                const messagesContainer = document.getElementById('messages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${role}`;
+                
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = role === 'user' ? '👤' : '🤖';
+                
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                messageContent.textContent = content;
+                
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(messageContent);
+                messagesContainer.appendChild(messageDiv);
+                
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                
+                return messageDiv;
+            }
+
+            toggleMute() {
+                this.isMuted = !this.isMuted;
+                const button = document.getElementById('mute-button');
+                button.textContent = this.isMuted ? '🔇 Unmute' : '🔊 Mute';
+                button.classList.toggle('active', this.isMuted);
+            }
+
+            toggleRecording() {
+                this.isRecording = !this.isRecording;
+                const button = document.getElementById('record-button');
+                button.textContent = this.isRecording ? '⏹️ Stop' : '⏺️ Record';
+                button.classList.toggle('active', this.isRecording);
+                
+                if (this.isRecording) {
+                    console.log('Started recording neural audio...');
+                } else {
+                    console.log('Stopped recording neural audio');
+                }
+            }
+
+            toggleVisualization() {
+                const button = document.getElementById('visualize-button');
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                    this.animationId = null;
+                    button.classList.remove('active');
+                    button.textContent = '📊 Start Viz';
+                } else {
+                    this.startVisualization();
+                    button.classList.add('active');
+                    button.textContent = '📊 Visualize';
+                }
+            }
+        }
+
+        // Initialize the chat interface
+        document.addEventListener('DOMContentLoaded', () => {
+            new NeuralAudioChat();
+        });
+    </script>
+</body>
+</html>

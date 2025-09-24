@@ -458,6 +458,21 @@ func (s *Server) GenerateHandler(c *gin.Context) {
 		}
 	}
 
+	// Set up neural audio if requested
+	var neuralAudioIntegration interface{} // Will be *neural_audio.LlamaIntegration in real implementation
+	if req.NeuralAudio != nil && *req.NeuralAudio {
+		// For now, just log that neural audio would be enabled
+		// In real implementation, this would be:
+		// audioConfig := getAudioConfig(req.NeuralAudioConfig)
+		// neuralAudioIntegration, err = neural_audio.CreateNeuralAudioSession(r.Context(), audioConfig)
+		// if err != nil {
+		//     c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to enable neural audio: %v", err)})
+		//     return
+		// }
+		// defer neural_audio.StopNeuralAudio(neuralAudioIntegration.(*neural_audio.LlamaIntegration))
+		slog.Info("Neural audio requested", "config", req.NeuralAudioConfig)
+	}
+
 	ch := make(chan any)
 	go func() {
 		// TODO (jmorganca): avoid building the response twice both here and below
@@ -480,6 +495,14 @@ func (s *Server) GenerateHandler(c *gin.Context) {
 					EvalCount:          cr.EvalCount,
 					EvalDuration:       cr.EvalDuration,
 				},
+			}
+
+			// Add neural audio data if enabled
+			if req.NeuralAudio != nil && *req.NeuralAudio && neuralAudioIntegration != nil {
+				// In real implementation, this would get actual audio data from the synthesizer:
+				// audioData := neuralAudioIntegration.(*neural_audio.LlamaIntegration).GetLatestAudioData()
+				// For now, simulate what the audio data would look like
+				res.NeuralAudio = generateSimulatedAudioData()
 			}
 
 			if builtinParser != nil {
@@ -1455,6 +1478,12 @@ func (s *Server) GenerateRoutes(rc *ollama.Registry) (http.Handler, error) {
 	r.GET("/v1/models", openai.ListMiddleware(), s.ListHandler)
 	r.GET("/v1/models/:model", openai.RetrieveMiddleware(), s.ShowHandler)
 
+	// Neural Audio Web Interface
+	r.Static("/neural-audio", "./web")
+	r.GET("/", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/neural-audio")
+	})
+
 	if rc != nil {
 		// wrap old with new
 		rs := &registry.Local{
@@ -1967,6 +1996,21 @@ func (s *Server) ChatHandler(c *gin.Context) {
 		toolParser = tools.NewParser(m.Template.Template, req.Tools)
 	}
 
+	// Set up neural audio if requested
+	var neuralAudioIntegration interface{} // Will be *neural_audio.LlamaIntegration in real implementation
+	if req.NeuralAudio != nil && *req.NeuralAudio {
+		// For now, just log that neural audio would be enabled
+		// In real implementation, this would be:
+		// audioConfig := getAudioConfig(req.NeuralAudioConfig)
+		// neuralAudioIntegration, err = neural_audio.CreateNeuralAudioSession(r.Context(), audioConfig)
+		// if err != nil {
+		//     c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to enable neural audio: %v", err)})
+		//     return
+		// }
+		// defer neural_audio.StopNeuralAudio(neuralAudioIntegration.(*neural_audio.LlamaIntegration))
+		slog.Info("Neural audio requested for chat", "config", req.NeuralAudioConfig)
+	}
+
 	ch := make(chan any)
 	go func() {
 		defer close(ch)
@@ -1988,6 +2032,14 @@ func (s *Server) ChatHandler(c *gin.Context) {
 					EvalCount:          r.EvalCount,
 					EvalDuration:       r.EvalDuration,
 				},
+			}
+
+			// Add neural audio data if enabled
+			if req.NeuralAudio != nil && *req.NeuralAudio && neuralAudioIntegration != nil {
+				// In real implementation, this would get actual audio data from the synthesizer:
+				// audioData := neuralAudioIntegration.(*neural_audio.LlamaIntegration).GetLatestAudioData()
+				// For now, simulate what the audio data would look like
+				res.NeuralAudio = generateSimulatedAudioData()
 			}
 			if r.Done {
 				res.DoneReason = r.DoneReason.String()
@@ -2134,5 +2186,103 @@ func filterThinkTags(msgs []api.Message, m *Model) []api.Message {
 			}
 		}
 	}
-	return msgs
+		return msgs
+}
+
+// generateSimulatedAudioData creates simulated neural audio data for demonstration
+// In real implementation, this would come from the actual neural audio synthesizer
+func generateSimulatedAudioData() *api.NeuralAudioData {
+	// Generate a short burst of audio samples (100ms at 44.1kHz)
+	sampleRate := 44100
+	duration := 0.1 // 100ms
+	samples := int(float64(sampleRate) * duration)
+	
+	audioSamples := make([]float32, samples)
+	frequency := 440.0 // A4 note
+	
+	// Generate a sine wave with some variation to simulate neural activity
+	for i := 0; i < samples; i++ {
+		t := float64(i) / float64(sampleRate)
+		// Add some frequency modulation to simulate neural variance
+		freqMod := frequency * (1.0 + 0.1*math.Sin(2*math.Pi*10*t))
+		audioSamples[i] = float32(0.3 * math.Sin(2*math.Pi*freqMod*t))
+	}
+	
+	return &api.NeuralAudioData{
+		AudioSamples: audioSamples,
+		SampleRate:   sampleRate,
+		Duration:     duration * 1000, // Convert to milliseconds
+		Timestamp:    time.Now(),
+		TensorStats: []api.NeuralTensorStat{
+			{
+				Name:                  "attention.query",
+				Shape:                 []int64{1, 32, 128, 64},
+				Magnitude:            0.65,
+				Variance:             0.23,
+				Sparsity:             0.15,
+				LayerType:            "attention",
+				FrequencyContribution: 0.7,
+				AmplitudeContribution: 0.3,
+			},
+			{
+				Name:                  "feed_forward.up",
+				Shape:                 []int64{1, 128, 4096},
+				Magnitude:            0.42,
+				Variance:             0.31,
+				Sparsity:             0.28,
+				LayerType:            "feed_forward",
+				FrequencyContribution: 0.3,
+				AmplitudeContribution: 0.7,
+			},
+		},
+	}
+}
+
+// getAudioConfig converts API config to internal neural audio config
+func getAudioConfig(apiConfig *api.NeuralAudioConfig) map[string]interface{} {
+	if apiConfig == nil {
+		// Return default configuration
+		return map[string]interface{}{
+			"magnitude_to_freq":  true,
+			"variance_to_amp":    true,
+			"sparsity_to_filter": true,
+			"base_freq":          440.0,
+			"freq_range":         [2]float64{220.0, 880.0},
+			"amp_range":          [2]float64{0.1, 0.8},
+			"update_rate":        "10ms",
+			"wave_type":          "sine",
+			"sample_rate":        44100,
+		}
+	}
+	
+	// Convert API config to internal format
+	config := make(map[string]interface{})
+	
+	if len(apiConfig.LayerFilters) > 0 {
+		config["layer_filters"] = apiConfig.LayerFilters
+	}
+	if apiConfig.BaseFreq > 0 {
+		config["base_freq"] = apiConfig.BaseFreq
+	}
+	if apiConfig.FreqRange[0] > 0 && apiConfig.FreqRange[1] > 0 {
+		config["freq_range"] = apiConfig.FreqRange
+	}
+	if apiConfig.AmpRange[0] >= 0 && apiConfig.AmpRange[1] > 0 {
+		config["amp_range"] = apiConfig.AmpRange
+	}
+	if apiConfig.UpdateRate != "" {
+		config["update_rate"] = apiConfig.UpdateRate
+	}
+	if apiConfig.WaveType != "" {
+		config["wave_type"] = apiConfig.WaveType
+	}
+	if apiConfig.SampleRate > 0 {
+		config["sample_rate"] = apiConfig.SampleRate
+	}
+	
+	config["magnitude_to_freq"] = apiConfig.MagnitudeToFreq
+	config["variance_to_amp"] = apiConfig.VarianceToAmp
+	config["sparsity_to_filter"] = apiConfig.SparsityToFilter
+	
+	return config
 }

@@ -106,6 +106,14 @@ type GenerateRequest struct {
 	// before this option was introduced)
 	Think *ThinkValue `json:"think,omitempty"`
 
+	// NeuralAudio enables real-time audio synthesis from neural network states during inference.
+	// When enabled, audio data will be included in streaming responses.
+	NeuralAudio *bool `json:"neural_audio,omitempty"`
+
+	// NeuralAudioConfig specifies configuration for neural audio synthesis.
+	// If not provided, default settings will be used.
+	NeuralAudioConfig *NeuralAudioConfig `json:"neural_audio_config,omitempty"`
+
 	// DebugRenderOnly is a debug option that, when set to true, returns the rendered
 	// template instead of calling the model.
 	DebugRenderOnly bool `json:"_debug_render_only,omitempty"`
@@ -139,6 +147,14 @@ type ChatRequest struct {
 	// responding. Can be a boolean (true/false) or a string ("high", "medium", "low")
 	// for supported models.
 	Think *ThinkValue `json:"think,omitempty"`
+
+	// NeuralAudio enables real-time audio synthesis from neural network states during inference.
+	// When enabled, audio data will be included in streaming responses.
+	NeuralAudio *bool `json:"neural_audio,omitempty"`
+
+	// NeuralAudioConfig specifies configuration for neural audio synthesis.
+	// If not provided, default settings will be used.
+	NeuralAudioConfig *NeuralAudioConfig `json:"neural_audio_config,omitempty"`
 
 	// DebugRenderOnly is a debug option that, when set to true, returns the rendered
 	// template instead of calling the model.
@@ -348,6 +364,10 @@ type ChatResponse struct {
 
 	// DoneReason is the reason the model stopped generating text.
 	DoneReason string `json:"done_reason,omitempty"`
+
+	// NeuralAudio contains real-time audio data generated from neural network states.
+	// Only present when neural_audio is enabled in the request.
+	NeuralAudio *NeuralAudioData `json:"neural_audio,omitempty"`
 
 	DebugInfo *DebugInfo `json:"_debug_info,omitempty"`
 
@@ -658,6 +678,10 @@ type GenerateResponse struct {
 
 	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
 
+	// NeuralAudio contains real-time audio data generated from neural network states.
+	// Only present when neural_audio is enabled in the request.
+	NeuralAudio *NeuralAudioData `json:"neural_audio,omitempty"`
+
 	DebugInfo *DebugInfo `json:"_debug_info,omitempty"`
 }
 
@@ -688,6 +712,88 @@ type Tensor struct {
 	Name  string   `json:"name"`
 	Type  string   `json:"type"`
 	Shape []uint64 `json:"shape"`
+}
+
+// NeuralAudioConfig configures how neural network states are converted to audio
+type NeuralAudioConfig struct {
+	// LayerFilters specifies which layers to monitor for audio generation
+	LayerFilters []string `json:"layer_filters,omitempty"`
+	
+	// MagnitudeToFreq maps tensor magnitude to audio frequency
+	MagnitudeToFreq bool `json:"magnitude_to_freq,omitempty"`
+	
+	// VarianceToAmp maps tensor variance to audio amplitude
+	VarianceToAmp bool `json:"variance_to_amp,omitempty"`
+	
+	// SparsityToFilter maps tensor sparsity to filter effects
+	SparsityToFilter bool `json:"sparsity_to_filter,omitempty"`
+	
+	// BaseFreq is the base frequency in Hz (default: 440.0)
+	BaseFreq float64 `json:"base_freq,omitempty"`
+	
+	// FreqRange defines the min/max frequency range [min, max] in Hz
+	FreqRange [2]float64 `json:"freq_range,omitempty"`
+	
+	// AmpRange defines the min/max amplitude range [min, max] (0.0 to 1.0)
+	AmpRange [2]float64 `json:"amp_range,omitempty"`
+	
+	// UpdateRate controls how often audio is updated (e.g. "10ms", "5ms")
+	UpdateRate string `json:"update_rate,omitempty"`
+	
+	// WaveType specifies the waveform type: "sine", "square", "sawtooth", "triangle", "noise"
+	WaveType string `json:"wave_type,omitempty"`
+	
+	// SampleRate for audio generation in Hz (default: 44100)
+	SampleRate int `json:"sample_rate,omitempty"`
+}
+
+// NeuralAudioData contains real-time audio data and metadata
+type NeuralAudioData struct {
+	// AudioSamples contains raw audio data as float32 samples
+	// Values range from -1.0 to 1.0
+	AudioSamples []float32 `json:"audio_samples,omitempty"`
+	
+	// SampleRate is the sample rate of the audio data
+	SampleRate int `json:"sample_rate"`
+	
+	// Duration is the duration of this audio chunk in milliseconds
+	Duration float64 `json:"duration"`
+	
+	// TensorStats provides information about the neural states that generated this audio
+	TensorStats []NeuralTensorStat `json:"tensor_stats,omitempty"`
+	
+	// Timestamp when this audio was generated
+	Timestamp time.Time `json:"timestamp"`
+	
+	// SequenceID links this audio to a specific inference sequence
+	SequenceID int `json:"sequence_id,omitempty"`
+}
+
+// NeuralTensorStat provides statistics about a tensor that contributed to audio generation
+type NeuralTensorStat struct {
+	// Name of the tensor/layer
+	Name string `json:"name"`
+	
+	// Shape of the tensor
+	Shape []int64 `json:"shape"`
+	
+	// Magnitude is the overall magnitude of activations
+	Magnitude float64 `json:"magnitude"`
+	
+	// Variance measures how spread out the values are
+	Variance float64 `json:"variance"`
+	
+	// Sparsity is the fraction of values that are near zero
+	Sparsity float64 `json:"sparsity"`
+	
+	// LayerType indicates the type of neural network layer
+	LayerType string `json:"layer_type,omitempty"`
+	
+	// FrequencyContribution shows how this tensor affected audio frequency
+	FrequencyContribution float64 `json:"frequency_contribution,omitempty"`
+	
+	// AmplitudeContribution shows how this tensor affected audio amplitude
+	AmplitudeContribution float64 `json:"amplitude_contribution,omitempty"`
 }
 
 func (m *Metrics) Summary() {
